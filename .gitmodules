@@ -1,0 +1,6 @@
+[submodule "steaking-contracts/lib/forge-std"]
+	path = steaking-contracts/lib/forge-std
+	url = https://github.com/foundry-rs/forge-std
+[submodule "steaking-contracts/lib/openzeppelin-contracts"]
+	path = steaking-contracts/lib/openzeppelin-contracts
+	url = https://github.com/openzeppelin/openzeppelin-contracts
