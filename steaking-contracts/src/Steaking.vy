@@ -16,7 +16,7 @@ from .interfaces import IWETH
 
 ADDRESS_ZERO: constant(address) = 0x0000000000000000000000000000000000000000
 MIN_STAKE_AMOUNT: constant(uint256) = 500000000000000000 # 0.5 ether
-STAKING_PERIOD: constant(uint256) = 2419200 # 4 weeks
+STAKING_PERIOD: constant(uint256) = 2419200 # 4 weeks //q it is 4 weeks? r yes it is
 
 WETH: public(immutable(address))
 
@@ -83,6 +83,8 @@ def unstake(_amount: uint256, _to: address):
     @param _amount The amount of staked ETH to withdraw.
     @param _to The address to send the withdrawn ETH to. 
     """
+    # q if for any reason owner can't call setVaultAddress function funds will be stucked for ever after the end of the period?
+    # r yes, funds can be stucked in that scenario.
     assert not self._hasStakingPeriodEnded(), STEAK__STAKING_PERIOD_ENDED
     assert _to != ADDRESS_ZERO, STEAK__ADDRESS_ZERO
 
@@ -107,7 +109,8 @@ def setVaultAddress(_vault: address):
     assert msg.sender == self.owner, STEAK__NOT_OWNER
     assert self._hasStakingPeriodEnded(), STEAK__CANNOT_SET_VAULT_ADDRESS_BEFORE_STAKING_PERIOD_ENDS
     assert _vault != ADDRESS_ZERO, STEAK__ADDRESS_ZERO
-
+    # q there is a way to verify if the contract vault is correct. What is the worth scenario if it is not correct?
+    # r we can assume owner has plenty conscious about what vault to set.
     self.vault = _vault
 
     log VaultAddressSet(_vault)
@@ -121,6 +124,9 @@ def depositIntoVault() -> uint256:
     @return The amount of shares received from the WETH Steak vault.
     """
     assert self._hasStakingPeriodEndedAndVaultAddressSet(), STEAK__STAKING_PERIOD_NOT_ENDED_OR_VAULT_ADDRESS_NOT_SET
+
+    # q user stake amount shouldn't be reduced? 
+    # r yes it should reduced. It is a high.
     stakedAmount: uint256 = self.usersToStakes[msg.sender]
     assert stakedAmount > 0, STEAK__AMOUNT_ZERO
 

@@ -3,7 +3,7 @@ pragma solidity 0.8.24;
 
 import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
-import {Test} from "forge-std/Test.sol";
+import {Test, console} from "forge-std/Test.sol";
 
 import {ISteaking} from "./utils/ISteaking.sol";
 
@@ -14,6 +14,7 @@ import {MockWETHSteakVault} from "./utils/MockWETHSteakVault.sol";
 contract SteakingTest is Test, EventsAndErrors {
     address public owner;
     address public user1;
+    address public attacker;
 
     ISteaking public steaking;
     MockWETH public weth;
@@ -24,6 +25,7 @@ contract SteakingTest is Test, EventsAndErrors {
 
         owner = makeAddr("owner");
         user1 = makeAddr("user1");
+        attacker = makeAddr("attacker");
 
         vm.startPrank(owner);
         weth = new MockWETH();
@@ -277,6 +279,115 @@ contract SteakingTest is Test, EventsAndErrors {
         vm.stopPrank();
     }
 
+    // Audit tests
+
+    function testCanStakeAndUnstakeUnlimitedTimesToEarnUnlimitedPoints() public {
+        uint256 dealAmount = steaking.getMinimumStakingAmount();
+        uint16 numberOfStakes = 3;
+
+        vm.deal(attacker, dealAmount);
+
+        vm.startPrank(attacker);
+        for (uint16 i = 0; i < numberOfStakes; i++) {
+            vm.expectEmit(); 
+            emit Staked(attacker, dealAmount, attacker);
+            steaking.stake{value: dealAmount}(attacker);
+            steaking.unstake(dealAmount,attacker);
+        }
+        vm.stopPrank();
+    }
+
+    function testStakedAmountDoesNotAccumulative() public {
+        uint256 dealAmount = steaking.getMinimumStakingAmount();
+        vm.deal(attacker, dealAmount);
+        uint16 numberOfStakes = 3;
+
+        for (uint16 i = 0; i < numberOfStakes; i++) {
+            _stake(user1, dealAmount, user1);
+        }
+
+        assertEq(steaking.usersToStakes(user1), dealAmount);
+    }
+
+
+    function testCanDepositToVaultBalanceFromOtherUser() public {
+        uint256 dealAmount = steaking.getMinimumStakingAmount();
+        _stake(user1, dealAmount, user1);
+        _stake(attacker, dealAmount, attacker);
+
+        _endStakingPeriod();
+
+        vm.startPrank(owner);
+        steaking.setVaultAddress(address(wethSteakVault));
+        vm.stopPrank();
+
+        vm.startPrank(attacker);
+        steaking.depositIntoVault();
+        steaking.depositIntoVault();
+        vm.stopPrank();
+        
+        vm.startPrank(user1);
+        // It should revert because of OutOfFunds error
+        vm.expectRevert();
+        steaking.depositIntoVault();
+        vm.stopPrank();
+
+        // attacker wethSteakVault balance should be its balance plus user1 balance.
+        assertEq(wethSteakVault.balanceOf(attacker), dealAmount * 2);
+    }
+    //fuzzing test
+    function testFuzz_stake(address _user, uint256 _amount, address _onBehalf)public {
+        _amount = bound(_amount, steaking.getMinimumStakingAmount(), type(uint256).max);
+        
+        vm.assume(_user != address(0));
+        vm.assume(_onBehalf != address(0));
+        
+        vm.deal(_user, _amount);
+
+        vm.startPrank(_user);
+        steaking.stake{value: _amount}(_onBehalf);
+        vm.stopPrank();
+
+        uint256 userStakedAmount = steaking.usersToStakes(_onBehalf);
+        uint256 totalAmountStaked = steaking.totalAmountStaked();
+
+        assertEq(userStakedAmount, _amount, "Incorrect userStakedAmount");
+        assertEq(totalAmountStaked, _amount, "Incorrect totalStakedAmount");
+    }
+
+    function testFuzz_unstake(address _user, uint256 _amount, address _onBehalf) public {
+        _amount = bound(_amount, steaking.getMinimumStakingAmount(), type(uint256).max);
+        vm.assume(_user != address(0));
+        vm.assume(_onBehalf != address(0));
+        vm.assume(_onBehalf != address(wethSteakVault));
+        vm.assume(_onBehalf != address(0x0000000000000000000000000000000000000008));
+        vm.assume(_onBehalf != address(0x0000000000000000000000000000000000000007));
+
+        _stake(_user, _amount, _onBehalf);
+        _unstake(_onBehalf, _amount, _onBehalf);
+    }
+
+    function testFuzz_depositIntoVault(address _user, uint256 _amount, address _onBehalf) public {
+        _amount = bound(_amount, steaking.getMinimumStakingAmount(), type(uint256).max);
+        vm.assume(_user != address(0));
+        vm.assume(_onBehalf != address(0));
+
+        _startVaultDepositPhase(_user, _amount, _onBehalf);
+
+        vm.startPrank(_onBehalf);
+        steaking.depositIntoVault();
+        vm.stopPrank();
+
+        uint256 steakingBalance = address(steaking).balance;
+        uint256 expectedSteakingBalance = 0;
+        uint256 wethSteakVaultShares = wethSteakVault.balanceOf(_onBehalf);
+
+        assertEq(steakingBalance, expectedSteakingBalance);
+        assertEq(wethSteakVaultShares, _amount);
+    }
+
+
+
     function _stake(address _user, uint256 _amount, address _onBehlafOf) internal {
         vm.deal(_user, _amount);
 
@@ -287,6 +398,10 @@ contract SteakingTest is Test, EventsAndErrors {
 
     function _unstake(address _user, uint256 _amount, address _to) internal {
         vm.startPrank(_user);
+        console.log('here before unstake: ' );
+        console.log('_amount: ', _amount);
+        console.log('_to: ', _to);
+        
         steaking.unstake(_amount, _to);
         vm.stopPrank();
     }

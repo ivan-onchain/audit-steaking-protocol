@@ -5,3 +5,6 @@ libs = ["lib"]
 remappings = ["@openzeppelin=lib/openzeppelin-contracts"]
 
 # See more config options https://github.com/foundry-rs/foundry/blob/master/crates/config/README.md#all-options
+[fuzz]
+runs = 1000
+# max_test_rejects = 1
