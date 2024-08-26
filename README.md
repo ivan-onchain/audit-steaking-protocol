@@ -1,4 +1,7 @@
 # Steaking
+This project was one of the First Flights challenges of [CodeHawks](https://codehawks.cyfrin.io/c/2024-08-steaking).
+
+With the vulnerabilities found and explained in the audit-data/report.md I was selected to be in the top 5 of the [leaderboard](https://codehawks.cyfrin.io/c/2024-08-steaking/results?lt=contest&page=1&sc=xp&sj=reward&t=leaderboard)  of this challenge.
 
 # Contest Details
 
